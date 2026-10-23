@@ -92,7 +92,7 @@
             <div class="rank-row" id="r5"><span>🧭 5星星考生</span> <span>470+</span></div>
             <div class="rank-row" id="r6"><span>🔍 合格線上的學生</span> <span>420+</span></div>
             <div class="rank-row" id="r7"><span>👤 歷史課打瞌睡專家</span> <span>370+</span></div>
-            <div class="rank-row" id="r8"><span>🐣 以為溥儀是女性的人</span> <span>&lt;270</span></div>
+            <div class="rank-row" id="r8"><span>🐣 以為溥儀是女性的人</span> <span>&lt;370</span></div>
         </div>
 
         <div style="margin-top: 15px;">
@@ -122,7 +122,7 @@
              <b>💡 幫助：</b>提交後，<b>正確的項目會自動鎖定</b>，助你推理。<br>
              <b>🏆 得分：</b>每關 40 分。排錯一次扣 10 分。<br>
              <b>⚡ 極速獎勵(只有首發全對才有啊)：</b><br>
-            • 8 秒內完成：<b>+30 分</b><br>
+            • 10 秒內完成：<b>+30 分</b><br>
             • 15 秒內完成：<b>+15 分</b><br>
             • 25 秒內完成：<b>+5 分</b><br>
         </div>
@@ -147,7 +147,7 @@
 
 <script>
 // 請更換為您的 Google Script URL
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwm2WYIGa0AxO-DtjduN7YS3f94Z3h2cRySJQlGSj8rLxokciKLqPfUGsx7njEq8M84yA/exec"; 
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDsaIP9Sa3l9SgnJad1s9AVf6dixWvXa1HUJAJuPMqwdv_oNsFCnAOXl30oLhp-PegYg/exec"; 
 
 const masterDatabase = [
     {text:"甲午戰爭", year:1894.07}, {text:"興中會成立", year:1894.11},
@@ -161,8 +161,8 @@ const masterDatabase = [
     {text:"四川保路風潮", year:1911.06}, {text:"武昌起義", year:1911.1010},
     {text:"湖北軍政府成立", year:1911.1011}, {text:"南北議和", year:1911.12},
     {text:"中華民國成立", year:1912.01}, {text:"清朝滅亡", year:1912.0212},
-    {text:"北京兵變", year:1912.0229}, {text:"國民黨成立", year:1912.08},
-    {text:"《臨時約法》頒布", year:1913.0311}, {text:"宋教仁案", year:1913.03},
+    {text:"北京兵變", year:1912.0229}, {text:"《臨時約法》頒布", year:1912.0311},
+    {text:"國民黨成立", year:1912.08}, {text:"宋教仁案", year:1913.03},
     {text:"善後大借款", year:1913.04}, {text:"二次革命", year:1913.07},
     {text:"袁世凱當選正式大總統", year:1913.10}, {text:"日本對德宣戰", year:1914.08},
     {text:"《二十一條》", year:1915.05}, {text:"籌安會成立", year:1915.08},
@@ -173,37 +173,49 @@ const masterDatabase = [
     {text:"《山東換文》", year:1918.09}, {text:"巴黎和會", year:1919.01},
     {text:"五四運動", year:1919.05}, {text:"中國國民黨成立", year:1919.10},
     {text:"中國共產黨成立", year:1921.07}, {text:"華盛頓會議", year:1921.11}
-
 ];
 
-
-
 let score = 0, level = 1, startTime, timerRunning = false, correctOrder = [], currentLevelBase = 40, autoNextInterval;
-let audio;
 
-function initAudio() {
-    try { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch(e) {}
-}
-function beep(f, t, d) {
-    if (!audio || audio.state !== 'running') return;
-    try { const o = audio.createOscillator(), g = audio.createGain(); o.type = t; o.frequency.value = f; o.connect(g); g.connect(audio.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + d); o.stop(audio.currentTime + d); } catch(e){}
+// --- 音效系統 (整合 Web Audio API) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playBeep(freq, duration, type = "sine") {
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    } catch(e) {}
 }
 
-// 新增功能：將小數格式化為年月日字串
+const sounds = {
+    click: () => playBeep(600, 0.1),
+    correct: () => { playBeep(880, 0.1); setTimeout(() => playBeep(1100, 0.2), 100); },
+    wrong: () => { playBeep(300, 0.2, "sawtooth"); },
+    finish: () => { 
+        [440, 554, 659, 880].forEach((f, i) => {
+            setTimeout(() => playBeep(f, 0.2), i * 150);
+        });
+    }
+};
+
+// 將小數格式化為年月日字串
 function formatYearString(val) {
-    // 強制保留 4 位小數並轉為字串，避免 1843.10 變成 1843.1
-    // 使用 .replace(/0+$/, '') 是為了去掉末尾多餘的 0，但我們需要先處理月份
     let s = val.toFixed(4); 
     let parts = s.split('.');
     let year = parts[0] + "年";
     
     if (!parts[1] || parseInt(parts[1]) === 0) return year;
 
-    // 抓取前兩位作為月份
     let monthStr = parts[1].substring(0, 2);
     let month = parseInt(monthStr);
     
-    // 抓取後兩位作為日期
     let dayStr = parts[1].substring(2, 4);
     let day = parseInt(dayStr);
 
@@ -214,9 +226,10 @@ function formatYearString(val) {
 }
 
 function startGame() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    sounds.click();
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'flex';
-    initAudio();
     startLevel();
 }
 
@@ -224,7 +237,7 @@ function startLevel() {
     if (level > 10) return finishGame();
     clearAutoNext();
     document.getElementById('lv-num').innerText = level;
-    document.getElementById('game-screen').classList.remove('show-year'); // 每關開始隱藏年份
+    document.getElementById('game-screen').classList.remove('show-year'); 
     document.getElementById('submit-btn').style.display = 'block';
     document.getElementById('next-btn').style.display = 'none';
     document.getElementById('feedback').innerText = "";
@@ -246,13 +259,15 @@ function startLevel() {
         const li = document.createElement('li');
         li.className = 'item'; 
         li.dataset.year = i.year; 
-        // 重點修改：將格式化後的完整日期存入 year-text
         li.innerHTML = `${i.text} <span class="year-text">(${formatYearString(i.year)})</span>`;
         list.appendChild(li);
     });
 
     if (window.gameSortable) window.gameSortable.destroy(); 
-    window.gameSortable = new Sortable(list, { animation: 200 });
+    window.gameSortable = new Sortable(list, { 
+        animation: 200,
+        onStart: () => sounds.click() // 拖曳時觸發點擊聲
+    });
 
     startTime = Date.now();
     timerRunning = true;
@@ -282,13 +297,13 @@ document.getElementById('submit-btn').addEventListener('click', () => {
 
     if (allCorrect) {
         timerRunning = false;
-        beep(880, 'sine', 0.5);
-        document.getElementById('game-screen').classList.add('show-year'); // 全對後顯示年份
+        sounds.correct(); // 播放答對音效
+        document.getElementById('game-screen').classList.add('show-year'); 
         
         const timeUsed = (Date.now() - startTime) / 1000;
         let bonus = 0;
         if (currentLevelBase === 40) { 
-            bonus = (timeUsed <= 8) ? 30 : (timeUsed <= 15) ? 15 : (timeUsed <= 25) ? 5 : 0;
+            bonus = (timeUsed <= 10) ? 30 : (timeUsed <= 15) ? 15 : (timeUsed <= 25) ? 5 : 0;
         }
         
         score += (currentLevelBase + bonus);
@@ -309,16 +324,21 @@ document.getElementById('submit-btn').addEventListener('click', () => {
             if (timeLeft <= 0) { clearAutoNext(); nextLevel(); }
         }, 1000);
     } else {
-        beep(200, 'square', 0.2);
+        sounds.wrong(); // 播放答錯音效
         currentLevelBase = Math.max(0, currentLevelBase - 10);
         document.getElementById('feedback').innerHTML = `<span style="color:var(--danger)">❌ 部分順序有誤，已鎖定正確項目！</span>`;
     }
 });
 
 function clearAutoNext() { if (autoNextInterval) clearInterval(autoNextInterval); }
-function nextLevel() { level++; startLevel(); }
+function nextLevel() { 
+    sounds.click(); // 下一關按鈕點擊聲
+    level++; 
+    startLevel(); 
+}
 
 function finishGame() {
+    sounds.finish(); // 播放遊戲結束通關音效
     document.getElementById('overlay').classList.add('show');
     initParticles();
     animateScore(0, score, 2000);
