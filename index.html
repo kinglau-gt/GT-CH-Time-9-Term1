@@ -104,7 +104,7 @@
                     <option value="G9E">G9E</option><option value="G9F">G9F</option>
                 </select>
                 <input type="text" id="player-name" placeholder="輸入你的姓名..." class="input-style">
-                <button id="sync-btn" class="btn" style="background:var(--accent); width:auto; padding:8px 25px; margin-top:8px; font-size:1rem;" id="btn-save">提交紀錄並同步</button>
+                <button id="sync-btn" class="btn" style="background:var(--accent); width:auto; padding:8px 25px; margin-top:8px; font-size:1rem;">提交紀錄並同步</button>
             </div>
             <button id="restart-btn" class="btn" style="background:var(--success); width:auto; padding:10px 30px; margin-top:10px; font-size:1rem; display:none;" onclick="location.reload()">再戰一次</button>
         </div>
@@ -400,10 +400,10 @@ function saveScore() {
     .catch(() => { alert("同步失敗！"); btn.innerText = "提交紀錄並同步"; btn.disabled = false; });
 }
 
-// 綁定事件監聽器（替代 inline onclick，確保閉包內可運作）
+// 統一綁定內部事件監聽器
 document.getElementById('btn-start').addEventListener('click', startGame);
 document.getElementById('next-btn').addEventListener('click', () => { clearAutoNext(); nextLevel(); });
-document.getElementById('btn-save').addEventListener('click', saveScore);
+document.getElementById('sync-btn').addEventListener('click', saveScore);
 
 })(); // 👈 IIFE 閉包結束
 </script>
